@@ -1,86 +1,75 @@
 local Players = game:GetService("Players")
 local Replicated = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
-local StarterGui = game:GetService("StarterGui")
 local LocalPlayer = Players.LocalPlayer
-
-getgenv().AutoSteal = false
-getgenv().AutoLock = false
+local RunService = game:GetService("RunService")
 
 -- Anti-Kick
 local mt = getrawmetatable(game)
-local namecall = mt.__namecall
 setreadonly(mt, false)
+local old = mt.__namecall
 mt.__namecall = newcclosure(function(self, ...)
     local args = {...}
-    if getnamecallmethod() == "Kick" then
-        return
+    if tostring(self) == "Kick" then
+        return nil
     end
-    return namecall(self, unpack(args))
+    return old(self, unpack(args))
 end)
-setreadonly(mt, true)
 
--- Anti-Cheat Bypass
-if Replicated:FindFirstChild("AntiCheat") then
-    Replicated.AntiCheat:Destroy()
+local gui = Instance.new("ScreenGui", game.CoreGui)
+gui.ResetOnSpawn = false
+
+local autoSteal, autoLock = false, false
+
+local function button(name, pos, func)
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.new(0, 130, 0, 35)
+    b.Position = pos
+    b.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    b.TextColor3 = Color3.new(1, 1, 1)
+    b.Font = Enum.Font.SourceSansBold
+    b.TextSize = 14
+    b.Text = name
+    b.Parent = gui
+    b.MouseButton1Click:Connect(func)
 end
 
--- Auto Steal
-local function stealBrainrot()
-    if not getgenv().AutoSteal then return end
-    for _, tool in ipairs(workspace:GetDescendants()) do
-        if tool.Name == "Brainrot" and tool:IsA("Tool") and tool:FindFirstChild("Handle") then
-            firetouchinterest(LocalPlayer.Character.HumanoidRootPart, tool.Handle, 0)
-            wait(0.1)
-            firetouchinterest(LocalPlayer.Character.HumanoidRootPart, tool.Handle, 1)
+local function trySteal()
+    local char = LocalPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+    for _, v in ipairs(workspace:GetDescendants()) do
+        if v:IsA("Tool") and v.Name == "Brainrot" and v:FindFirstChild("Handle") then
+            firetouchinterest(char.HumanoidRootPart, v.Handle, 0)
+            task.wait(0.1)
+            firetouchinterest(char.HumanoidRootPart, v.Handle, 1)
         end
     end
 end
 
--- Auto Lock Base
-local function lockBase()
-    if getgenv().AutoLock and Replicated:FindFirstChild("LockBase") then
-        Replicated.LockBase:FireServer()
-    end
-end
-
--- Teleport to Base
 local function teleportBase()
-    if workspace:FindFirstChild(LocalPlayer.Name.."'s Base") then
-        LocalPlayer.Character.HumanoidRootPart.CFrame = workspace[LocalPlayer.Name.."'s Base"].PrimaryPart.CFrame + Vector3.new(0, 5, 0)
+    local base = workspace:FindFirstChild(LocalPlayer.Name .. "'s Base")
+    if base and base:FindFirstChild("Baseplate") then
+        LocalPlayer.Character:MoveTo(base.Baseplate.Position + Vector3.new(0, 3, 0))
     end
 end
 
--- UI
-local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
-ScreenGui.Name = "BrainrotUI"
-
-local function createBtn(text, pos, callback)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 180, 0, 40)
-    btn.Position = pos
-    btn.Text = text
-    btn.TextScaled = true
-    btn.BackgroundColor3 = Color3.fromRGB(80, 80, 255)
-    btn.TextColor3 = Color3.new(1, 1, 1)
-    btn.BorderSizePixel = 0
-    btn.Parent = ScreenGui
-    btn.MouseButton1Click:Connect(callback)
+local function lockBase()
+    local r = Replicated:FindFirstChild("LockBase")
+    if r then r:FireServer() end
 end
 
-createBtn("Auto Steal", UDim2.new(0, 20, 0, 100), function()
-    getgenv().AutoSteal = not getgenv().AutoSteal
+RunService.RenderStepped:Connect(function()
+    if autoSteal then trySteal() end
+    if autoLock then lockBase() end
 end)
 
-createBtn("Auto Lock", UDim2.new(0, 20, 0, 150), function()
-    getgenv().AutoLock = not getgenv().AutoLock
+button("Toggle Auto Steal", UDim2.new(0, 10, 0, 300), function()
+    autoSteal = not autoSteal
 end)
 
-createBtn("Teleport Base", UDim2.new(0, 20, 0, 200), function()
+button("Teleport to Base", UDim2.new(0, 10, 0, 350), function()
     teleportBase()
 end)
 
-RunService.RenderStepped:Connect(function()
-    if getgenv().AutoSteal then stealBrainrot() end
-    if getgenv().AutoLock then lockBase() end
+button("Toggle Auto Lock Base", UDim2.new(0, 10, 0, 400), function()
+    autoLock = not autoLock
 end)
